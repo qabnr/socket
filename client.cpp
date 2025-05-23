@@ -50,7 +50,7 @@ int main() {
             std::cerr << "Server disconnected\n";
             break;
         }
-        sleep(1);
+        sleep(5);
     }
     close(sock);
     return 0;

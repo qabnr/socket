@@ -35,6 +35,7 @@ int main() {
     // Reap zombie children
     signal(SIGCHLD, [](int){ while (waitpid(-1, nullptr, WNOHANG) > 0); });
 
+    int client_cnt = 0;
     while (true) {
         sockaddr_in client_addr{};
         socklen_t client_len = sizeof(client_addr);
@@ -44,6 +45,7 @@ int main() {
             continue;
         }
 
+        int client_id = ++client_cnt;
         pid_t pid = fork();
         if (pid < 0) {
             std::cerr << "Fork failed\n";
@@ -53,21 +55,24 @@ int main() {
         if (pid == 0) { // Child process
             close(server_fd); // Child doesn't need the listening socket
             int cnt = 0;
+            char client_ip[INET_ADDRSTRLEN];
+            inet_ntop(AF_INET, &client_addr.sin_addr, client_ip, INET_ADDRSTRLEN);
+            std::cout << "Client connected: id=" << client_id << ", ip=" << client_ip << ", port=" << ntohs(client_addr.sin_port) << std::endl;
             while (true)
             {
                 char buffer[1024] = {0};
                 int valread = read(client_sock, buffer, sizeof(buffer) - 1);
                 if (valread > 0) {
-                    std::cout << "Client: " << buffer << " (" << ++cnt << ")\n";
+                    std::cout << "Client[" << client_id << "]: " << buffer << " (" << ++cnt << ")\n";
                     const char* reply = "Hello from server";
                     send(client_sock, reply, strlen(reply), 0);
                 }
                 if (strcmp(buffer, "exit") == 0) {
-                    std::cout << "Client closed the connection\n";
+                    std::cout << "Client[" << client_id << "] closed the connection\n";
                     break;
                 }
                 if (valread <= 0) {
-                    std::cerr << "Client disconnected\n";
+                    std::cerr << "Client[" << client_id << "] disconnected\n";
                     break;
                 }
             }
