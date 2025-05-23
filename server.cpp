@@ -3,6 +3,7 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <sys/wait.h>
+#include <signal.h>
 
 int main() {
     const int port = 8080;
@@ -31,35 +32,52 @@ int main() {
 
     std::cout << "Server listening on port " << port << std::endl;
 
-    sockaddr_in client_addr{};
-    socklen_t client_len = sizeof(client_addr);
-    int client_sock = accept(server_fd, (sockaddr*)&client_addr, &client_len);
-    if (client_sock < 0) {
-        std::cerr << "Accept failed\n";
-        close(server_fd);
-        return 1;
-    }
+    // Reap zombie children
+    signal(SIGCHLD, [](int){ while (waitpid(-1, nullptr, WNOHANG) > 0); });
 
-    int cnt = 0;
-    while (true)
-    {
-        char buffer[1024] = {0};
-        int valread = read(client_sock, buffer, sizeof(buffer) - 1);
-        if (valread > 0) {
-            std::cout << "Client: " << buffer << " (" << ++cnt << ")\n";
-            const char* reply = "Hello from server";
-            send(client_sock, reply, strlen(reply), 0);
+    while (true) {
+        sockaddr_in client_addr{};
+        socklen_t client_len = sizeof(client_addr);
+        int client_sock = accept(server_fd, (sockaddr*)&client_addr, &client_len);
+        if (client_sock < 0) {
+            std::cerr << "Accept failed\n";
+            continue;
         }
-        if (strcmp(buffer, "exit") == 0) {
-            std::cout << "Client closed the connection\n";
-            break;
+
+        pid_t pid = fork();
+        if (pid < 0) {
+            std::cerr << "Fork failed\n";
+            close(client_sock);
+            continue;
         }
-        if (valread <= 0) {
-            std::cerr << "Client disconnected\n";
-            break;
+        if (pid == 0) { // Child process
+            close(server_fd); // Child doesn't need the listening socket
+            int cnt = 0;
+            while (true)
+            {
+                char buffer[1024] = {0};
+                int valread = read(client_sock, buffer, sizeof(buffer) - 1);
+                if (valread > 0) {
+                    std::cout << "Client: " << buffer << " (" << ++cnt << ")\n";
+                    const char* reply = "Hello from server";
+                    send(client_sock, reply, strlen(reply), 0);
+                }
+                if (strcmp(buffer, "exit") == 0) {
+                    std::cout << "Client closed the connection\n";
+                    break;
+                }
+                if (valread <= 0) {
+                    std::cerr << "Client disconnected\n";
+                    break;
+                }
+            }
+            close(client_sock);
+            return 0;
+        } else {
+            // Parent process
+            close(client_sock); // Parent doesn't need this socket
         }
     }
-    close(client_sock);
     close(server_fd);
     return 0;
 }
