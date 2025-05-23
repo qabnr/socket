@@ -1,0 +1,6 @@
+# Ignore compiled executables
+client
+server
+*.o
+*.out
+*.exe
