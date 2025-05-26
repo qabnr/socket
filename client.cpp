@@ -4,7 +4,7 @@
 #include <arpa/inet.h>
 
 int main() {
-//*
+/*
     const char* server_ip = "127.0.0.1";
 /*/
     const char* server_ip = "192.168.1.88";
@@ -33,21 +33,20 @@ int main() {
 
     const char* msg = "Hello from client";
     int counter = 0;
-    while (true)
-    {
+    while (true) {
         send(sock, msg, strlen(msg), 0);
 
         char buffer[1024] = {0};
         int valread = read(sock, buffer, sizeof(buffer) - 1);
+        if (valread <= 0) {
+            std::cerr << "Server disconnected\n";
+            break;
+        }
         if (valread > 0) {
             std::cout << "Server: " << buffer << " [#" << ++counter << "]" << std::endl;
         }
         if (strcmp(buffer, "exit") == 0) {
             std::cout << "Server closed the connection\n";
-            break;
-        }
-        if (valread <= 0) {
-            std::cerr << "Server disconnected\n";
             break;
         }
         sleep(5);
